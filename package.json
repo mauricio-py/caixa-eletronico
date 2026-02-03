@@ -1,0 +1,25 @@
+{
+  "name": "caixa-eletronico",
+  "version": "1.0.0",
+  "description": "Esse repositório é uma iniciativa propria para demostrar meus conhecimentos com API Rest com NodeJs",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon ./src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mauricio-py/caixa-eletronico.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mauricio-py/caixa-eletronico/issues"
+  },
+  "homepage": "https://github.com/mauricio-py/caixa-eletronico#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "nodemon": "^3.1.11"
+  }
+}
