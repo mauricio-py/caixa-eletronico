@@ -31,7 +31,11 @@ Clone o repositório e instale as dependências:
 
 ```bash
 npm install
-3. Configurando o Banco de Dados
+```
+
+### 3. Configurando o Banco de Dados
+
+```bash
 Crie um banco de dados vazio no seu PostgreSQL chamado caixa_eletronico.
 
 Crie um arquivo .env na raiz do projeto com as suas credenciais. Atenção: Defina uma JWT_SECRET segura.
@@ -44,12 +48,14 @@ DB_PASSWORD=sua_senha
 DB_PORT=5432
 JWT_SECRET=minha_chave_super_secreta
 PORT=3000
-4. Criando as Tabelas
+```
+
+### 4. Criando as Tabelas
+
 Execute o script de configuração para criar as tabelas (clients, accounts, transactions) automaticamente:
 
 Bash
-node src/setup.js
-5. Rodando o Servidor
+node src/setup.js 5. Rodando o Servidor
 Bash
 npm start
 O servidor rodará em http://localhost:3000.
@@ -68,10 +74,12 @@ Key: Authorization
 Value: Bearer SEU_TOKEN_AQUI
 
 📖 Documentação da API
-1. Rotas Públicas
-Criar Conta
-Cria um novo cliente e uma conta bancária vinculada.
 
+1. Rotas Públicas
+   Criar Conta
+   Cria um novo cliente e uma conta bancária vinculada.
+
+```bash
 URL: /contas/criar
 
 Método: POST
@@ -139,7 +147,11 @@ JSON
     "numero_conta_destino": "654321",
     "valor": 100.00
 }
+```
+
 🗂 Estrutura do Projeto
+
+```bash
 Plaintext
 /
 ├── src
