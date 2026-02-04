@@ -1,118 +1,149 @@
-const db = require('../db');
+const db = require('../db'); // Agora isso é o objeto knex
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-exports.createAccount = async (req, res) => {
-  // AGORA ACEITAMOS O JSON EM PORTUGUÊS
-  const { nome, cpf, data_nascimento, senha } = req.body;
+// Função de Login (Gera o Token)
+exports.login = async (req, res) => {
+  const { cpf, senha } = req.body;
 
-  // Validação usando as variáveis em português
-  if (!nome || !cpf || !data_nascimento || !senha) {
-    return res.status(400).json({
-      erro: 'Todos os campos são obrigatórios (nome, cpf, data_nascimento, senha).'
-    });
+  if (!cpf || !senha) {
+    return res.status(400).json({ erro: 'Informe CPF e senha.' });
   }
 
-  const client = await db.pool.connect();
-
   try {
-    await client.query('BEGIN');
+    // Busca cliente e conta unindo as tabelas
+    const client = await db('clients')
+      .join('accounts', 'clients.id', 'accounts.client_id')
+      .where('clients.cpf', cpf)
+      .select('clients.id as client_id', 'accounts.id as account_id', 'accounts.password_hash', 'accounts.account_number')
+      .first();
 
-    // 1. Inserir Cliente (Tabela em Inglês, Variável em Português)
-    const clientRes = await client.query(
-      'INSERT INTO clients (name, cpf, birth_date) VALUES ($1, $2, $3) RETURNING id',
-      [nome, cpf, data_nascimento] // Mapeando: nome -> name, data_nascimento -> birth_date
+    if (!client) {
+      return res.status(401).json({ erro: 'Usuário não encontrado.' });
+    }
+
+    // Verifica a senha com bcrypt
+    const validPassword = await bcrypt.compare(senha, client.password_hash);
+
+    if (!validPassword) {
+      return res.status(401).json({ erro: 'Senha incorreta.' });
+    }
+
+    // Gera o Token JWT
+    const token = jwt.sign(
+      { id: client.account_id, accountNumber: client.account_number },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
     );
 
-    const clientId = clientRes.rows[0].id;
-
-    // 2. Gerar dados da conta
-    const accountNumber = Math.floor(Math.random() * 999999).toString();
-    const agency = '0001';
-
-    // 3. Inserir Conta
-    await client.query(
-      'INSERT INTO accounts (client_id, account_number, agency, password_hash) VALUES ($1, $2, $3, $4)',
-      [clientId, accountNumber, agency, senha] // Mapeando: senha -> password_hash
-    );
-
-    await client.query('COMMIT');
-
-    res.status(201).json({
-      mensagem: 'Conta criada com sucesso!',
-      dados: {
-        cliente: nome,
-        agencia: agency,
-        conta: accountNumber,
-        saldo: 0.00
-      }
+    res.json({
+      mensagem: 'Login realizado com sucesso!',
+      token: token
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
-
-    if (error.code === '23505') {
-      return res.status(409).json({ erro: 'CPF ou conta já cadastrados.' });
-    }
-
     console.error(error);
-    res.status(500).json({ erro: 'Erro interno ao criar conta.' });
-  } finally {
-    client.release();
+    res.status(500).json({ erro: 'Erro no login.' });
+  }
+};
+
+exports.createAccount = async (req, res) => {
+  const { nome, cpf, data_nascimento, senha } = req.body;
+
+  if (!nome || !cpf || !data_nascimento || !senha) {
+    return res.status(400).json({ erro: 'Dados incompletos.' });
+  }
+
+  try {
+    // Hash da senha antes de salvar
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(senha, salt);
+
+    // Transação com Knex
+    await db.transaction(async (trx) => {
+      // 1. Inserir Cliente
+      const [client] = await trx('clients')
+        .insert({
+          name: nome,
+          cpf: cpf,
+          birth_date: data_nascimento
+        })
+        .returning('id'); // Retorna o ID inserido
+
+      // 2. Gerar dados e Inserir Conta
+      const accountNumber = Math.floor(Math.random() * 999999).toString();
+
+      await trx('accounts').insert({
+        client_id: client.id, // Knex retorna objeto { id: 1 }
+        account_number: accountNumber,
+        agency: '0001',
+        password_hash: passwordHash // Salvando hash, não a senha pura
+      });
+
+      res.status(201).json({
+        mensagem: 'Conta criada com sucesso!',
+        dados: { cliente: nome, conta: accountNumber }
+      });
+    });
+
+  } catch (error) {
+    console.error(error);
+    if (error.code === '23505') { // Código de erro do Postgres para duplicidade mantém o mesmo
+      return res.status(409).json({ erro: 'CPF já cadastrado.' });
+    }
+    res.status(500).json({ erro: 'Erro ao criar conta.' });
   }
 };
 
 exports.deposit = async (req, res) => {
-  // MUDAMOS AQUI TAMBÉM: JSON EM PORTUGUÊS
   const { numero_conta, valor } = req.body;
 
+  // Nota: Como usamos JWT, poderíamos pegar o numero_conta do token (req.accountNumber)
+  // Mas para depósito, geralmente permitimos depositar na conta de outros, então mantive via body.
+
   if (!numero_conta || !valor || valor <= 0) {
-    return res.status(400).json({ erro: 'Dados inválidos. Informe numero_conta e valor.' });
+    return res.status(400).json({ erro: 'Dados inválidos.' });
   }
 
-  const client = await db.pool.connect();
-
   try {
-    await client.query('BEGIN');
+    await db.transaction(async (trx) => {
+      // 1. Verifica se conta existe
+      const account = await trx('accounts')
+        .where('account_number', numero_conta)
+        .first();
 
-    // 1. Atualizar Saldo
-    const updateResult = await client.query(
-      `UPDATE accounts 
-             SET balance = balance + $1 
-             WHERE account_number = $2 
-             RETURNING id, balance`,
-      [valor, numero_conta] // Mapeando: valor -> amount
-    );
-
-    if (updateResult.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ erro: 'Conta não encontrada.' });
-    }
-
-    const accountId = updateResult.rows[0].id;
-    const currentBalance = updateResult.rows[0].balance;
-
-    // 2. Registrar Transação
-    await client.query(
-      `INSERT INTO transactions (account_id, type, amount, description) 
-             VALUES ($1, 'DEPOSIT', $2, 'Depósito em Caixa Eletrônico')`,
-      [accountId, valor]
-    );
-
-    await client.query('COMMIT');
-
-    res.status(200).json({
-      mensagem: 'Depósito realizado com sucesso!',
-      dados: {
-        conta: numero_conta,
-        valorDepositado: valor,
-        saldoAtual: currentBalance
+      if (!account) {
+        // Forçamos um erro para cancelar a transação
+        throw new Error('CONTA_NAO_ENCONTRADA');
       }
+
+      // 2. Atualiza Saldo
+      await trx('accounts')
+        .where('id', account.id)
+        .increment('balance', valor);
+
+      // 3. Registra Transação
+      await trx('transactions').insert({
+        account_id: account.id,
+        type: 'DEPOSIT',
+        amount: valor,
+        description: 'Depósito via API'
+      });
+
+      // Busca saldo atualizado para retornar
+      const updatedAccount = await trx('accounts').where('id', account.id).first();
+
+      res.status(200).json({
+        mensagem: 'Depósito realizado!',
+        saldo_atual: updatedAccount.balance
+      });
     });
 
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (error.message === 'CONTA_NAO_ENCONTRADA') {
+      return res.status(404).json({ erro: 'Conta não encontrada.' });
+    }
     console.error(error);
-    res.status(500).json({ erro: 'Erro interno ao realizar depósito.' });
-  } finally {
-    client.release();
+    res.status(500).json({ erro: 'Erro ao realizar depósito.' });
   }
 };

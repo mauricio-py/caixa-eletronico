@@ -1,9 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const accountController = require('../controllers/accountController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
-// MUDANÇA AQUI: Rotas em português
+// Rota pública (qualquer um pode criar conta ou logar)
 router.post('/criar', accountController.createAccount);
-router.post('/depositar', accountController.deposit);
+router.post('/login', accountController.login);
+
+// Rotas protegidas (precisa de Token JWT no Header)
+// O middleware vem antes do controller
+router.post('/depositar', authMiddleware, accountController.deposit);
 
 module.exports = router;

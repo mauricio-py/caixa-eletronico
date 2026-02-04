@@ -1,19 +1,27 @@
-const { Pool } = require('pg');
 require('dotenv').config();
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+const knex = require('knex')({
+  client: 'pg',
+  connection: {
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
+    port: process.env.DB_PORT,
+  },
+  // Configuração do Pool de conexões (opcional, mas recomendado)
+  pool: {
+    min: 2,
+    max: 10
+  }
 });
 
-pool.on('connect', () => {
-  console.log('Base de Dados conectado com sucesso!');
-});
+// Teste rápido de conexão
+knex.raw('SELECT 1')
+  .then(() => console.log('✅ PostgreSQL conectado via Knex!'))
+  .catch((err) => {
+    console.error('❌ Falha na conexão:', err);
+    process.exit(1);
+  });
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-  pool
-};
+module.exports = knex;
