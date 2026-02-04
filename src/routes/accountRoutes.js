@@ -3,12 +3,14 @@ const router = express.Router();
 const accountController = require('../controllers/accountController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
-// Rota pública (qualquer um pode criar conta ou logar)
+//Metodos de conta
+router.get('/listar', accountController.getAllAccounts);
 router.post('/criar', accountController.createAccount);
 router.post('/login', accountController.login);
 
-// Rotas protegidas (precisa de Token JWT no Header)
-// O middleware vem antes do controller
+// Métodos protegidos por autenticação
 router.post('/depositar', authMiddleware, accountController.deposit);
+router.post('/sacar', authMiddleware, accountController.withdraw);
+router.post('/transferir', authMiddleware, accountController.transfer);
 
 module.exports = router;
