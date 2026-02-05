@@ -12,5 +12,6 @@ router.post('/login', accountController.login);
 router.post('/depositar', authMiddleware, accountController.deposit);
 router.post('/sacar', authMiddleware, accountController.withdraw);
 router.post('/transferir', authMiddleware, accountController.transfer);
+router.get('/extrato', authMiddleware, accountController.getStatement);
 
 module.exports = router;

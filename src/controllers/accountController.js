@@ -256,3 +256,48 @@ exports.transfer = async (req, res) => {
     res.status(500).json({ erro: 'Erro ao realizar transferência.' });
   }
 };
+
+exports.getStatement = async (req, res) => {
+  const { userId } = req;
+
+  // Pegamos a página da URL (ex: /extrato?pagina=2). Se não vier nada, assume 1.
+  const pagina = req.query.pagina || 1;
+  const limite = 10; // Quantos itens por página
+  const offset = (pagina - 1) * limite; // O Pulo (Quantos registros ignorar)
+
+  try {
+    // 1. Buscamos as transações com LIMIT e OFFSET
+    const statement = await db('transactions')
+      .where('account_id', userId)
+      .orderBy('created_at', 'desc')
+      .limit(limite) // Traz só 10
+      .offset(offset); // Pula os anteriores
+
+    // 2. Buscamos o saldo atual
+    const account = await db('accounts').where('id', userId).first();
+
+    // 3. (Opcional) Contamos quantas transações existem no total para o front-end saber
+    const [countResult] = await db('transactions')
+      .where('account_id', userId)
+      .count('id as total');
+
+    const totalTransacoes = parseInt(countResult.total);
+    const totalPaginas = Math.ceil(totalTransacoes / limite);
+
+    res.status(200).json({
+      mensagem: 'Extrato recuperado com sucesso.',
+      saldo_atual: account.balance,
+      paginacao: {
+        pagina_atual: parseInt(pagina),
+        itens_por_pagina: limite,
+        total_paginas: totalPaginas,
+        total_transacoes: totalTransacoes
+      },
+      historico: statement
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: 'Erro ao buscar extrato.' });
+  }
+};
