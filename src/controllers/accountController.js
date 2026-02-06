@@ -262,7 +262,7 @@ exports.getStatement = async (req, res) => {
 
   // Pegamos a página da URL (ex: /extrato?pagina=2). Se não vier nada, assume 1.
   const pagina = req.query.pagina || 1;
-  const limite = 10; // Quantos itens por página
+  const limite = 20; // Quantos itens por página
   const offset = (pagina - 1) * limite; // O Pulo (Quantos registros ignorar)
 
   try {
